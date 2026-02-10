@@ -11,4 +11,4 @@ https://amzn.to/45mmbIB
 
 
 No Repositório 'BHP' = Black Hat Python 
-E o Repositório 'PPP' = Python Para Pentest
+E o Repositório 'DHM' = Python Para Pentest (do autor Daniel Henrique Moreno)
