@@ -1,5 +1,6 @@
 {
     "notebook.outline.showCodeCellSymbols": true,
     "notebook.output.scrolling": true,
-    "notebook.output.wordWrap": true
+    "notebook.output.wordWrap": true,
+    "python.analysis.autoImportCompletions": true
 }
