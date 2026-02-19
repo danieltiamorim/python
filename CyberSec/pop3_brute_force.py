@@ -15,8 +15,8 @@ def pop3_brute():
     host = sys.argv[1]
     use_ssl = True if "-ssl" in sys.argv else False
     
-    user_file = 'common-names.txt'
-    pass_file = '/home/daniel/Documentos/WordLists/wordlist-master/top10k.txt'
+    user_file = 'common-usernames.txt'
+    pass_file = '/WordLists/wordlist-master/top10k.txt'
 
     # Configuração de SSL para aceitar o servidor legado (DH 1024)
     context = ssl.create_default_context()
