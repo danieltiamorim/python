@@ -9,7 +9,7 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect((target_host,target_port))
 
 #enviar alguns dados
-client.send(b"GET / HTTP/1.1\r\n Host: Navegador_Web_Falso\r\n User-Agent: Navegador Falso \r\n ABCDEF \r\n Y0uH4v3B33nPwn3d")
+client.send(b"GET / HTTP/1.1\r\n Host: servidor_falso.com\r\n User-Agent: Navegador Falso \r\n ABCDEF \r\n Y0uH4v3B33nPwn3d")
 
 #receber alguns dados
 response = client.recv(4096)
