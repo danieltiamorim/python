@@ -38,7 +38,7 @@ def pop3_brute():
             for password in passwords:
                 try:
                     if use_ssl:
-                        # Porta 995 para POP3S
+                        # Porta 995 para SPOP3
                         p = poplib.POP3_SSL(host, port=995, context=context)
                     else:
                         # Porta 110 para POP3 normal

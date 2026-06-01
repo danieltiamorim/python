@@ -16,6 +16,7 @@ class SecuritySuite:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36'
         }
+    print ("\n[*] Iniciando Scanner de Segurança Web...")
 
     # --- 1. CRAWLER / DISCOVERY ---
     def get_links(self, url):
@@ -139,7 +140,7 @@ class SecuritySuite:
 
     # --- 4. Orquestrando o SQLMAP ---
     def run_sqlmap(self):
-        print("\n[*] [4/4] Orquestrando SQLMap (Validaçãoo Avançada)...")
+        print("\n[*] [4/4] Orquestrando SQLMap (Validação Avançada)...")
         # Check basico de dependencia
         try:
             subprocess.run(["sqlmap", "--version"], capture_output=True, check=True)

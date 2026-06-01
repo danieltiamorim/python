@@ -1,4 +1,4 @@
-nome_completo =  "Daniel H. Amorim"
+nome_completo =  "Daniel H. Amorim "
 nome_completo_aspas = '''Daniel H. Amorim'''
 nome_completo_quebra = "Daniel\nH.\nAmorim"
 nome_completo_quebra2 = """Daniel
