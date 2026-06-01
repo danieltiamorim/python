@@ -4,8 +4,6 @@
 # autenticar usando um username e password, e depois enviar comandos para o servidor executar.
 # Para testar, primeiro execute o universal_server.py para iniciar o servidor,
 # e depois execute este script para conectar ao servidor e obter a shell reversa.  
-
-import paramiko
 import subprocess
 import sys
 
