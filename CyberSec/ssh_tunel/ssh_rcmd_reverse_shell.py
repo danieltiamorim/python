@@ -57,9 +57,13 @@ def ssh_command(ip, port, user, passwd, command):
     return
 
   
+###Defina aqui qual será o usuário e asenha para o shell_reverso
+
+
 if __name__ == '__main__':
     import getpass
-    user = getpass.getuser()
+    user = 'username'
+    #user = getpass.getuser()
     password = 'password'
     #user = input ('Username SSH: ')
     #password = getpass.getpass()
