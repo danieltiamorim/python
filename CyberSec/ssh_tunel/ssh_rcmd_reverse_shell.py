@@ -17,8 +17,8 @@ def instalar_e_importar_paramiko():
     except ImportError:
         print("⏳ Paramiko não encontrado. Iniciando a instalação...")
         try:
-            # 2. Executa o comando: python -m pip install paramiko
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "paramiko"])
+            # 2. Executa o comando: python -m pip install paramiko --break-system-packages
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "paramiko", "--break-system-packages"])
             print("✅ Paramiko instalado com sucesso!")
             
             # 3. Importa após a instalação
