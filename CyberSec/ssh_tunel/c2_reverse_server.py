@@ -11,8 +11,28 @@ import socket
 import paramiko
 import threading
 import sys
+import os
 
-HOSTKEY = paramiko.RSAKey(filename='test_rsa.key')
+
+
+KEY_FILE = 'test_rsa.key'
+
+# Verifica se o arquivo da chave já existe
+if not os.path.exists(KEY_FILE):
+    print(f"[*] Arquivo '{KEY_FILE}' não encontrado. Gerando uma nova chave RSA...")
+    # Gera uma nova chave RSA de 2048 bits
+    key = paramiko.RSAKey.generate(bits=2048)
+    # Salva a chave gerada no arquivo especificado
+    key.write_private_key_file(KEY_FILE)
+    print("[*] Chave gerada com sucesso!")
+
+
+HOSTKEY = paramiko.RSAKey(filename=KEY_FILE)
+
+####Define o usuário e a senha do C2
+luser = 'username'
+passwd = 'password'
+
 
 class Server(paramiko.ServerInterface):
     def __init__(self):
@@ -25,7 +45,7 @@ class Server(paramiko.ServerInterface):
         return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_auth_password(self, username, password):
-        if (username == 'daniel') and (password == 'password'):
+        if (username == luser) and (password == passwd ):
             return paramiko.AUTH_SUCCESSFUL
         return paramiko.AUTH_FAILED
 
